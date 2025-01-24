@@ -471,88 +471,84 @@ function updateStats(opportunities) {
     document.getElementById('potentialEarnings').textContent = `€${potentialEarnings.toFixed(2)}`;
 }
 
-let activeLinks = [];
-let totalViews = 0;
-let earnings = 0;
+// Configurazione
 const RATE_PER_VIEW = 0.001; // €0.001 per view
 
 function generateTrackingLink() {
-    const originalUrl = document.getElementById('urlInput').value;
-    if (!isValidUrl(originalUrl)) {
-        alert('Inserisci un URL valido di YouTube o TikTok');
+    const youtubeUrl = document.getElementById('urlInput').value;
+    if (!isValidYoutubeUrl(youtubeUrl)) {
+        alert('Inserisci un URL valido di YouTube');
         return;
     }
 
-    const trackingId = generateTrackingId();
-    const trackingUrl = `${window.location.origin}/track/${trackingId}?url=${encodeURIComponent(originalUrl)}`;
+    // Estrai l'ID del video da YouTube
+    const videoId = extractYoutubeVideoId(youtubeUrl);
+    if (!videoId) {
+        alert('URL YouTube non valido');
+        return;
+    }
 
-    const linkData = {
+    // Crea un link di tracking unico
+    const trackingId = generateUniqueId();
+    const trackingUrl = `${window.location.origin}/watch/${trackingId}/${videoId}`;
+
+    // Salva il link nel localStorage
+    saveTrackingLink(trackingId, youtubeUrl, videoId);
+
+    // Aggiorna l'interfaccia
+    addLinkToList({
         id: trackingId,
-        originalUrl,
-        trackingUrl,
+        originalUrl: youtubeUrl,
+        trackingUrl: trackingUrl,
         views: 0,
-        earnings: 0,
-        createdAt: new Date()
-    };
+        earnings: 0
+    });
 
-    activeLinks.push(linkData);
-    saveData();
-    updateLinksList();
     document.getElementById('urlInput').value = '';
 }
 
-function updateLinksList() {
+function isValidYoutubeUrl(url) {
+    return url.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/);
+}
+
+function extractYoutubeVideoId(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function generateUniqueId() {
+    return 'yt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function saveTrackingLink(trackingId, originalUrl, videoId) {
+    const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
+    links[trackingId] = {
+        originalUrl,
+        videoId,
+        views: 0,
+        earnings: 0,
+        createdAt: new Date().toISOString()
+    };
+    localStorage.setItem('trackingLinks', JSON.stringify(links));
+}
+
+function addLinkToList(linkData) {
     const container = document.getElementById('linksList');
-    container.innerHTML = '';
-
-    activeLinks.forEach(link => {
-        const div = document.createElement('div');
-        div.className = 'link-card';
-        div.innerHTML = `
-            <div class="link-info">
-                <p class="original-url">${link.originalUrl}</p>
-                <p class="tracking-url">${link.trackingUrl}</p>
-                <button onclick="copyToClipboard('${link.trackingUrl}')">Copia Link</button>
-            </div>
-            <div class="link-stats">
-                <p>Views: ${link.views}</p>
-                <p>Guadagno: €${link.earnings.toFixed(3)}</p>
-            </div>
-        `;
-        container.appendChild(div);
-    });
-}
-
-function updateStats() {
-    totalViews = activeLinks.reduce((sum, link) => sum + link.views, 0);
-    earnings = activeLinks.reduce((sum, link) => sum + link.earnings, 0);
-
-    document.getElementById('totalViews').textContent = totalViews;
-    document.getElementById('totalEarnings').textContent = `€${earnings.toFixed(3)}`;
-}
-
-// Simula l'arrivo di nuove views ogni 30 secondi
-setInterval(() => {
-    if (activeLinks.length > 0) {
-        const randomLinkIndex = Math.floor(Math.random() * activeLinks.length);
-        const newViews = Math.floor(Math.random() * 5) + 1; // 1-5 nuove views
-        
-        activeLinks[randomLinkIndex].views += newViews;
-        activeLinks[randomLinkIndex].earnings += newViews * RATE_PER_VIEW;
-        
-        saveData();
-        updateLinksList();
-        updateStats();
-    }
-}, 30000);
-
-// Funzioni di utilità
-function generateTrackingId() {
-    return 'track_' + Math.random().toString(36).substr(2, 9);
-}
-
-function isValidUrl(url) {
-    return url.includes('youtube.com') || url.includes('tiktok.com');
+    const div = document.createElement('div');
+    div.className = 'link-card';
+    div.innerHTML = `
+        <div class="link-info">
+            <p class="original-url">Video: ${linkData.originalUrl}</p>
+            <p class="tracking-url">Link di tracking: ${linkData.trackingUrl}</p>
+            <button onclick="copyToClipboard('${linkData.trackingUrl}')">Copia Link</button>
+        </div>
+        <div class="link-stats">
+            <p>Views: ${linkData.views}</p>
+            <p>Guadagno: €${linkData.earnings.toFixed(3)}</p>
+        </div>
+    `;
+    container.appendChild(div);
 }
 
 function copyToClipboard(text) {
@@ -561,24 +557,45 @@ function copyToClipboard(text) {
     });
 }
 
-function saveData() {
-    localStorage.setItem('viewsData', JSON.stringify({
-        links: activeLinks,
-        totalViews,
-        earnings
-    }));
+// Simula le views (per test)
+setInterval(() => {
+    const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
+    Object.keys(links).forEach(trackingId => {
+        // Simula 0-2 nuove views ogni 30 secondi
+        const newViews = Math.floor(Math.random() * 3);
+        if (newViews > 0) {
+            links[trackingId].views += newViews;
+            links[trackingId].earnings += newViews * RATE_PER_VIEW;
+        }
+    });
+    localStorage.setItem('trackingLinks', JSON.stringify(links));
+    updateStats();
+}, 30000);
+
+function updateStats() {
+    const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
+    const totalViews = Object.values(links).reduce((sum, link) => sum + link.views, 0);
+    const totalEarnings = Object.values(links).reduce((sum, link) => sum + link.earnings, 0);
+
+    document.getElementById('totalViews').textContent = totalViews;
+    document.getElementById('totalEarnings').textContent = `€${totalEarnings.toFixed(3)}`;
+
+    // Aggiorna la lista dei link
+    const container = document.getElementById('linksList');
+    container.innerHTML = '';
+    Object.entries(links).forEach(([trackingId, linkData]) => {
+        addLinkToList({
+            id: trackingId,
+            originalUrl: linkData.originalUrl,
+            trackingUrl: `${window.location.origin}/watch/${trackingId}/${linkData.videoId}`,
+            views: linkData.views,
+            earnings: linkData.earnings
+        });
+    });
 }
 
-function loadSavedData() {
-    const savedData = localStorage.getItem('viewsData');
-    if (savedData) {
-        const data = JSON.parse(savedData);
-        activeLinks = data.links;
-        totalViews = data.totalViews;
-        earnings = data.earnings;
-        updateLinksList();
-    }
-}
+// Inizializza le statistiche
+document.addEventListener('DOMContentLoaded', updateStats);
 
 // Gestione prelievi
 async function requestWithdraw() {
