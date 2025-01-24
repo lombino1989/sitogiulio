@@ -472,7 +472,8 @@ function updateStats(opportunities) {
 }
 
 // Configurazione
-const RATE_PER_VIEW = 0.001; // €0.001 per view
+const RATE_PER_VIEW = 0.50; // €0.50 per view
+const VIEW_INTERVAL = 30000; // 30 secondi
 
 function generateTrackingLink() {
     const youtubeUrl = document.getElementById('urlInput').value;
@@ -490,7 +491,6 @@ function generateTrackingLink() {
 
     // Crea un link di tracking unico
     const trackingId = generateUniqueId();
-    // Usa l'URL completo del dominio
     const trackingUrl = `${window.location.protocol}//${window.location.host}/watch/${trackingId}/${videoId}`;
 
     // Salva il link nel localStorage
@@ -502,7 +502,8 @@ function generateTrackingLink() {
         originalUrl: youtubeUrl,
         trackingUrl: trackingUrl,
         views: 0,
-        earnings: 0
+        earnings: 0,
+        isActive: true // Nuovo campo per tracciare se il link è attivo
     });
 
     document.getElementById('urlInput').value = '';
@@ -538,15 +539,18 @@ function addLinkToList(linkData) {
     const container = document.getElementById('linksList');
     const div = document.createElement('div');
     div.className = 'link-card';
+    div.id = `link-${linkData.id}`;
     div.innerHTML = `
         <div class="link-info">
             <p class="original-url">Video: ${linkData.originalUrl}</p>
             <p class="tracking-url">Link di tracking: ${linkData.trackingUrl}</p>
             <button onclick="copyToClipboard('${linkData.trackingUrl}')">Copia Link</button>
+            <button onclick="simulateClick('${linkData.id}')" class="view-button">Simula Click</button>
         </div>
         <div class="link-stats">
-            <p>Views: ${linkData.views}</p>
-            <p>Guadagno: €${linkData.earnings.toFixed(3)}</p>
+            <p>Views: <span class="views-count">${linkData.views}</span></p>
+            <p>Guadagno: €<span class="earnings-count">${linkData.earnings.toFixed(2)}</span></p>
+            <p class="status">Stato: ${linkData.isActive ? 'Attivo' : 'Inattivo'}</p>
         </div>
     `;
     container.appendChild(div);
@@ -558,41 +562,57 @@ function copyToClipboard(text) {
     });
 }
 
-// Simula le views (per test)
+function simulateClick(linkId) {
+    const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
+    const link = links[linkId];
+    
+    if (!link) return;
+    
+    // Attiva il contatore per questo link
+    link.isActive = true;
+    localStorage.setItem('trackingLinks', JSON.stringify(links));
+    
+    // Aggiorna l'interfaccia
+    const card = document.getElementById(`link-${linkId}`);
+    if (card) {
+        card.querySelector('.status').textContent = 'Stato: Attivo';
+    }
+}
+
+// Aggiorna le statistiche ogni 30 secondi per i link attivi
 setInterval(() => {
     const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
-    Object.keys(links).forEach(trackingId => {
-        // Simula 0-2 nuove views ogni 30 secondi
-        const newViews = Math.floor(Math.random() * 3);
-        if (newViews > 0) {
-            links[trackingId].views += newViews;
-            links[trackingId].earnings += newViews * RATE_PER_VIEW;
+    let updated = false;
+
+    Object.entries(links).forEach(([linkId, link]) => {
+        if (link.isActive) {
+            // Aggiungi una view e il guadagno
+            link.views += 1;
+            link.earnings += RATE_PER_VIEW;
+            updated = true;
+
+            // Aggiorna l'interfaccia per questo link
+            const card = document.getElementById(`link-${linkId}`);
+            if (card) {
+                card.querySelector('.views-count').textContent = link.views;
+                card.querySelector('.earnings-count').textContent = link.earnings.toFixed(2);
+            }
         }
     });
-    localStorage.setItem('trackingLinks', JSON.stringify(links));
-    updateStats();
-}, 30000);
 
-function updateStats() {
+    if (updated) {
+        localStorage.setItem('trackingLinks', JSON.stringify(links));
+        updateTotalStats();
+    }
+}, VIEW_INTERVAL);
+
+function updateTotalStats() {
     const links = JSON.parse(localStorage.getItem('trackingLinks') || '{}');
     const totalViews = Object.values(links).reduce((sum, link) => sum + link.views, 0);
     const totalEarnings = Object.values(links).reduce((sum, link) => sum + link.earnings, 0);
 
     document.getElementById('totalViews').textContent = totalViews;
-    document.getElementById('totalEarnings').textContent = `€${totalEarnings.toFixed(3)}`;
-
-    // Aggiorna la lista dei link
-    const container = document.getElementById('linksList');
-    container.innerHTML = '';
-    Object.entries(links).forEach(([trackingId, linkData]) => {
-        addLinkToList({
-            id: trackingId,
-            originalUrl: linkData.originalUrl,
-            trackingUrl: `${window.location.origin}/watch/${trackingId}/${linkData.videoId}`,
-            views: linkData.views,
-            earnings: linkData.earnings
-        });
-    });
+    document.getElementById('totalEarnings').textContent = `€${totalEarnings.toFixed(2)}`;
 }
 
 // Inizializza le statistiche
