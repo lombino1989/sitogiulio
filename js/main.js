@@ -490,7 +490,8 @@ function generateTrackingLink() {
 
     // Crea un link di tracking unico
     const trackingId = generateUniqueId();
-    const trackingUrl = `${window.location.origin}/watch/${trackingId}/${videoId}`;
+    // Usa l'URL completo del dominio
+    const trackingUrl = `${window.location.protocol}//${window.location.host}/watch/${trackingId}/${videoId}`;
 
     // Salva il link nel localStorage
     saveTrackingLink(trackingId, youtubeUrl, videoId);

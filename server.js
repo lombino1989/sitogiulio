@@ -319,35 +319,34 @@ app.post('/ipn', (req, res) => {
     res.sendStatus(200);
 });
 
-// Traccia le visualizzazioni reali
+// Gestisce la pagina di watch
+app.get('/watch/:trackingId/:videoId', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
+});
+
+// API per tracciare le views
 app.post('/api/track-view', async (req, res) => {
-    const { linkId, referrer } = req.body;
+    const { trackingId, videoId } = req.body;
     
-    // Verifica che la visualizzazione sia valida
-    if (isValidView(referrer)) {
-        try {
-            // Aggiorna le statistiche
-            await updateViewStats(linkId);
-            res.json({ status: 'success' });
-        } catch (error) {
-            res.status(500).json({ error: 'Errore nel tracciamento' });
+    try {
+        // Verifica che la richiesta provenga dalla pagina di watch
+        const referer = req.headers.referer || '';
+        if (!referer.includes('/watch/')) {
+            return res.status(403).json({ error: 'Invalid request' });
         }
-    } else {
-        res.json({ status: 'invalid' });
+
+        // Aggiorna le statistiche nel database
+        await updateViewStats(trackingId);
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error('Error tracking view:', error);
+        res.status(500).json({ error: 'Error tracking view' });
     }
 });
 
-function isValidView(referrer) {
-    // Verifica che la view provenga da YouTube o TikTok
-    return referrer && (
-        referrer.includes('youtube.com') || 
-        referrer.includes('tiktok.com')
-    );
-}
-
-async function updateViewStats(linkId) {
-    // Qui implementa l'aggiornamento del database
-    // con le visualizzazioni reali
+async function updateViewStats(trackingId) {
+    // Qui implementa l'aggiornamento delle statistiche
+    // Per ora usiamo localStorage sul client
 }
 
 const PORT = process.env.PORT || 3000;
